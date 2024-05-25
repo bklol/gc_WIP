@@ -44,32 +44,9 @@ bool gc_status::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen, boo
 	return true;
 }
 
-CON_COMMAND_EXTERN(gc_test, gc_test, "gc_test");
-
 bool IsConnectedToGC(void *pGameSystem)
 {
 	return *(int *)((uint8*)pGameSystem + WIN_LINUX(0x52c, 0x5b4)) == 0;
-}
-
-void gc_test(const CCommandContext& context, const CCommand& args)
-{
-	uint8 *ptr = (uint8*)modules::server->FindSignature((uint8*)sigs::IGameSystem_InitAllSystems_pFirst) + 3;
-	CBaseGameSystemFactory::sm_pFirst = (CBaseGameSystemFactory **)(ptr + *(uint32*)ptr + 4);
-	void *pGameSystem = CBaseGameSystemFactory::GetGlobalPtrByName("CCSGCServerSystem");
-	if(pGameSystem)
-	{
-		Message("Is connect to gc? %s\n",IsConnectedToGC(pGameSystem) ? "yes" : "no");
-		Message("reconnect to gc....\n");
-		if(IsConnectedToGC(pGameSystem))
-		{
-			//addresses::Hello_SERVER_GC((uint8*)pGameSystem + WIN_LINUX(0xb8, 0xb0));
-			*(int *)((uint8*)pGameSystem + WIN_LINUX(0x52c, 0x5b4)) = 0;
-			addresses::Init_CCSGCServerSystem();
-			addresses::Init_Steam_GC(pGameSystem);
-		}
-	}
-	else
-		Message("cant find CGCClientSystem aka CCSGCServerSystem\n");	
 }
 
 bool gc_status::Unload(char *error, size_t maxlen)
@@ -80,16 +57,15 @@ bool gc_status::Unload(char *error, size_t maxlen)
 
 void gc_status::Hook_StartupServer(const GameSessionConfiguration_t& config, ISource2WorldSession*, const char*)
 {
-	/*
 	uint8 *ptr = (uint8*)modules::server->FindSignature((uint8*)sigs::IGameSystem_InitAllSystems_pFirst) + 3;
 	CBaseGameSystemFactory::sm_pFirst = (CBaseGameSystemFactory **)(ptr + *(uint32*)ptr + 4);
 	void *pGameSystem = CBaseGameSystemFactory::GetGlobalPtrByName("CCSGCServerSystem");
 	if(pGameSystem)
 	{
 		Message("Is connect to gc? %s\n",IsConnectedToGC(pGameSystem) ? "yes" : "no");
-		Message("reconnect to gc....\n");
 		if(!IsConnectedToGC(pGameSystem))
 		{
+			Message("trying  to reconnect gc....\n");
 			//addresses::Hello_SERVER_GC((uint8*)pGameSystem + WIN_LINUX(0xb8, 0xb0));
 			addresses::Init_CCSGCServerSystem();
 			addresses::Init_Steam_GC(pGameSystem);
@@ -97,7 +73,6 @@ void gc_status::Hook_StartupServer(const GameSessionConfiguration_t& config, ISo
 	}
 	else
 		Message("cant find CGCClientSystem aka CCSGCServerSystem\n");
-	*/
 }
 
 void gc_status::AllPluginsLoaded()
