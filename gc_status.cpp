@@ -3,6 +3,7 @@
 
 #include "appframework/IAppSystem.h"
 #include "common.h"
+#include "icvar.h"
 #include "interface.h"
 #include "tier0/dbg.h"
 #include "plat.h"
@@ -11,6 +12,7 @@
 #include "addresses.h"
 
 CBaseGameSystemFactory **CBaseGameSystemFactory::sm_pFirst = nullptr;
+ICvar *icvar = NULL;
 
 void Message(const char *msg, ...)
 {
@@ -36,8 +38,38 @@ bool gc_status::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen, boo
 	PLUGIN_SAVEVARS();
 	GET_V_IFACE_ANY(GetEngineFactory, g_pNetworkServerService, INetworkServerService, NETWORKSERVERSERVICE_INTERFACE_VERSION);
 	SH_ADD_HOOK_MEMFUNC(INetworkServerService, StartupServer, g_pNetworkServerService, this, &gc_status::Hook_StartupServer, true);
+	GET_V_IFACE_CURRENT(GetEngineFactory, g_pCVar, ICvar, CVAR_INTERFACE_VERSION);
+	ConVar_Register( FCVAR_RELEASE | FCVAR_CLIENT_CAN_EXECUTE | FCVAR_GAMEDLL );
 	addresses::Initialize();
 	return true;
+}
+
+CON_COMMAND_EXTERN(gc_test, gc_test, "gc_test");
+
+bool IsConnectedToGC(void *pGameSystem)
+{
+	return *(int *)((uint8*)pGameSystem + WIN_LINUX(0x52c, 0x5b4)) == 0;
+}
+
+void gc_test(const CCommandContext& context, const CCommand& args)
+{
+	uint8 *ptr = (uint8*)modules::server->FindSignature((uint8*)sigs::IGameSystem_InitAllSystems_pFirst) + 3;
+	CBaseGameSystemFactory::sm_pFirst = (CBaseGameSystemFactory **)(ptr + *(uint32*)ptr + 4);
+	void *pGameSystem = CBaseGameSystemFactory::GetGlobalPtrByName("CCSGCServerSystem");
+	if(pGameSystem)
+	{
+		Message("Is connect to gc? %s\n",IsConnectedToGC(pGameSystem) ? "yes" : "no");
+		Message("reconnect to gc....\n");
+		if(IsConnectedToGC(pGameSystem))
+		{
+			//addresses::Hello_SERVER_GC((uint8*)pGameSystem + WIN_LINUX(0xb8, 0xb0));
+			*(int *)((uint8*)pGameSystem + WIN_LINUX(0x52c, 0x5b4)) = 0;
+			addresses::Init_CCSGCServerSystem();
+			addresses::Init_Steam_GC(pGameSystem);
+		}
+	}
+	else
+		Message("cant find CGCClientSystem aka CCSGCServerSystem\n");	
 }
 
 bool gc_status::Unload(char *error, size_t maxlen)
@@ -46,13 +78,9 @@ bool gc_status::Unload(char *error, size_t maxlen)
 	return true;
 }
 
-bool IsConnectedToGC(void *pGameSystem)
-{
-	return *(int *)((uint8*)pGameSystem + WIN_LINUX(0x52c, 0x5b4)) == 0;
-}
-
 void gc_status::Hook_StartupServer(const GameSessionConfiguration_t& config, ISource2WorldSession*, const char*)
 {
+	/*
 	uint8 *ptr = (uint8*)modules::server->FindSignature((uint8*)sigs::IGameSystem_InitAllSystems_pFirst) + 3;
 	CBaseGameSystemFactory::sm_pFirst = (CBaseGameSystemFactory **)(ptr + *(uint32*)ptr + 4);
 	void *pGameSystem = CBaseGameSystemFactory::GetGlobalPtrByName("CCSGCServerSystem");
@@ -62,18 +90,14 @@ void gc_status::Hook_StartupServer(const GameSessionConfiguration_t& config, ISo
 		Message("reconnect to gc....\n");
 		if(!IsConnectedToGC(pGameSystem))
 		{
-			/*
-				should call after steamapi active.....,so first call must be failed...
-				linux need did some other trick so its not working in linux
-				actually you should 
-				1:init CCSGCServerSystem
-				2:resend serverhello to gc
-			*/
-			addresses::Hello_SERVER_GC((uint8*)pGameSystem + WIN_LINUX(0xb8, 0xb0)); 
+			//addresses::Hello_SERVER_GC((uint8*)pGameSystem + WIN_LINUX(0xb8, 0xb0));
+			addresses::Init_CCSGCServerSystem();
+			addresses::Init_Steam_GC(pGameSystem);
 		}
 	}
 	else
 		Message("cant find CGCClientSystem aka CCSGCServerSystem\n");
+	*/
 }
 
 void gc_status::AllPluginsLoaded()
